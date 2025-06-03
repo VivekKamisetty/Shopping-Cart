@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shopping-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shopping-app
+  template:
+    metadata:
+      labels:
+        app: shopping-app
+    spec:
+      serviceAccountName: shopping-secrets-sa # Ensure this service account has permissions to access secrets
+      containers:
+        - name: shopping-app
+          image: 785761195285.dkr.ecr.us-east-2.amazonaws.com/shopping-app-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: shopping-app-secrets
+                  key: dbUsername
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: shopping-app-secrets
+                  key: dbPassword
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: shopping-app-secrets
+                  key: googleClientId
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: shopping-app-secrets
+                  key: googleClientSecret

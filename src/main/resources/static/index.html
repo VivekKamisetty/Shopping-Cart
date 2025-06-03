@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Shopping App</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    .product, .cart-item, .order { margin-bottom: 10px; }
+    button { margin-left: 10px; }
+  </style>
+</head>
+<body>
+  <h2 id="user">Loading user...</h2>
+
+  <h3>Products</h3>
+  <div id="products"></div>
+
+  <h3>Cart</h3>
+  <div id="cart"></div>
+  <button onclick="placeOrder()">Place Order</button>
+
+  <h3>Orders</h3>
+  <div id="orders"></div>
+  <button onclick="deleteAllOrders()">Delete All Orders</button>
+
+
+  <script>
+    let csrfToken = '';
+
+    async function fetchAndStoreCsrfToken() {
+      const res = await fetch("/csrf-token", { credentials: 'include' });
+      const data = await res.json();
+      csrfToken = data.token;
+    }
+
+    async function deleteAllOrders() {
+    const confirmed = confirm("Are you sure you want to delete all orders?");
+    if (!confirmed) return;
+
+    await fetch("/orders/delete", {
+      method: 'DELETE',
+      headers: {
+        'X-XSRF-TOKEN': csrfToken
+      },
+      credentials: 'include'
+    }).then(res => {
+      if (res.ok) {
+        alert("All orders deleted.");
+        fetchOrders();
+      } else {
+        alert("Failed to delete orders. Status: " + res.status);
+      }
+    });
+    }
+
+
+    async function fetchUser() {
+      const res = await fetch("/", { credentials: 'include' });
+      const text = await res.text();
+      document.getElementById("user").innerText = text;
+    }
+
+    async function fetchProducts() {
+      const res = await fetch("/products");
+      const products = await res.json();
+      const container = document.getElementById("products");
+      container.innerHTML = "";
+      products.forEach(p => {
+        const div = document.createElement("div");
+        div.className = "product";
+        div.innerHTML = `<b>${p.name}</b> - $${p.price}
+          <button onclick="addToCart(${p.id})">Add to Cart</button>`;
+        container.appendChild(div);
+      });
+    }
+
+    async function fetchCart() {
+      const res = await fetch("/cart");
+      const items = await res.json();
+      const container = document.getElementById("cart");
+      container.innerHTML = "";
+      items.forEach(i => {
+        const div = document.createElement("div");
+        div.className = "cart-item";
+        div.innerHTML = `
+          ${i.productName} x ${i.quantity} = $${(i.price * i.quantity).toFixed(2)}
+          <button onclick="removeFromCart(${i.productId})">-</button>`;
+        container.appendChild(div);
+      });
+    }
+
+    async function addToCart(productId) {
+      await fetch('/cart/add', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': csrfToken
+        },
+        body: JSON.stringify({ productId, quantity: 1 }),
+        credentials: 'include'
+      }).then(res => {
+        if (res.ok) fetchCart();
+        else alert("Failed to add. Status: " + res.status);
+      });
+    }
+
+    async function removeFromCart(productId) {
+      await fetch('/cart/remove', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': csrfToken
+        },
+        body: JSON.stringify({ productId }),
+        credentials: 'include'
+      }).then(res => {
+        if (res.ok) fetchCart();
+        else alert("Failed to remove. Status: " + res.status);
+      });
+    }
+
+    async function placeOrder() {
+      await fetch("/orders/place", {
+        method: 'GET', // or POST if your backend expects it
+        headers: { 'X-XSRF-TOKEN': csrfToken },
+        credentials: 'include'
+      });
+      fetchCart();
+      fetchOrders();
+    }
+
+    async function fetchOrders() {
+      const res = await fetch("/orders");
+      const orders = await res.json();
+      const container = document.getElementById("orders");
+      container.innerHTML = "";
+      orders.forEach(o => {
+        const div = document.createElement("div");
+        div.className = "order";
+        const total = `$${o.totalPrice.toFixed(2)}`;
+        const time = new Date(o.orderTime).toLocaleString();
+        div.innerHTML = `<b>Order #${o.id}</b> (${time}) - ${total}<br>
+          ${o.items.map(i => `${i.productName} x${i.quantity}`).join(", ")}`;
+        container.appendChild(div);
+      });
+    }
+
+    // Initial load
+    (async () => {
+      await fetchUser();
+      await fetchAndStoreCsrfToken();
+      await fetchProducts();
+      await fetchCart();
+      await fetchOrders();
+    })();
+  </script>
+</body>
+</html>
